@@ -1,0 +1,324 @@
+interface:
+  description: "Calculates the electonic excitation energies and oscillator strengths for a finite system using GAMESS US. Also calculates band-gap quantities."
+  inputSpec:
+    namingScheme: "SMILES"
+    inputExtractionMethod:
+      hookGetInputIds:
+        source:
+          path: "input/input_smiles.csv"
+  propertiesSpec:
+    - name: "excitation-energy"
+      description: "Excitation energy in electron volts"
+      propertyExtractionMethod:
+        hookGetProperties:
+          source:
+            keyOutput: "TDDFTResults"
+    - name: "osc-str-max"
+      description: "The maximum oscillator strength found"
+      propertyExtractionMethod:
+        hookGetProperties:
+          source:
+            keyOutput: "TDDFTResults"
+
+# From stage 1 geometry optimization
+    - name: "band-gap"
+      description: "The difference between homo and lumo in electron-volts"
+      propertyExtractionMethod:
+        hookGetProperties:
+          source:
+            keyOutput: "OptimisationResults"
+    - name: "homo"
+      description: "The energy of the highest occuppied molecular orbital in electron-volts"
+      propertyExtractionMethod:
+        hookGetProperties:
+          source:
+            keyOutput: "OptimisationResults"
+    - name: "lumo"
+      description: "The energy of the lowest unoccuppied molecular orbital in electron-volts"
+      propertyExtractionMethod:
+        hookGetProperties:
+          source:
+            keyOutput: "OptimisationResults"
+    - name: "electric-moments"
+      description: "The dipole moment in debyes"
+      propertyExtractionMethod:
+        hookGetProperties:
+          source:
+            keyOutput: "OptimisationResults"
+    - name: "total-energy"
+      description: "The total energy of the molecule in electron-volts"
+      propertyExtractionMethod:
+        hookGetProperties:
+          source:
+            keyOutput: "OptimisationResults"
+status-report:
+  0:
+    arguments: '1'
+    executable: echo
+    stage-weight: 0.1
+  1:
+    arguments: '1'
+    executable: echo
+    stage-weight: 0.7
+  2:
+    arguments: '1'
+    executable: echo
+    stage-weight: 0.2
+output:
+  OptimisationResults:
+    data-in: ExtractEnergies/energies.csv:ref
+    description: '"Anion homo/lumo results"'
+    stages:
+    - 1
+    type: csv
+  TDDFTResults:
+    data-in: stage2.ProcessTDDFTOutput/ionisation_energy.csv:ref
+    description: '"The ionisation energy"'
+    type: csv
+
+platforms:
+- openshift
+- openshift-kubeflux
+
+blueprint:
+  openshift-kubeflux:
+    global:
+      resourceManager:
+        kubernetes:
+          podSpec:
+            schedulerName: kubeflux
+
+environments:
+  default:
+    GAMESS:
+      GMSPATH: /gamess/
+      PATH: /gamess/:$PATH
+    PYTHON: {}
+
+components:
+
+  # Set GAMESS US basis set
+- stage: 0
+  name: SetBasis
+  command:
+    arguments: sed -i'.bak' -e 's/#BASIS#/%(basis)s/g' input_molecule.txt molecule_tddft.inp
+    interpreter: bash
+  references:
+  - data/input_molecule.txt:copy
+  - data/molecule_tddft.inp:copy
+
+  # Set GAMESS US DFT functional
+- stage: 0
+  name: SetFunctional
+  command:
+    arguments: sed -i'.bak' -e 's/#FUNCTIONAL#/%(functional)s/g' input_molecule.txt
+      molecule_tddft.inp
+    interpreter: bash
+  references:
+  - SetBasis/input_molecule.txt:copy
+  - SetBasis/molecule_tddft.inp:copy
+
+  # Get the index of the row(s) to make inputs and run the calculation for
+- stage: 0
+  name: GetMoleculeIndex
+  command:
+    arguments: -c \"print(%(startIndex)s + %(replica)s),\" 
+    executable: python
+  workflowAttributes:
+    replicate: '%(numberMolecules)s'
+
+  # Set the molecule up from smiles to coordinates using RDKit
+- stage: 0
+  name: SMILESToGAMESSInput
+  command:
+    arguments: --input input_smiles.csv --template input_molecule.txt --row GetMoleculeIndex:output
+    environment: python
+    executable: bin/rdkit_smiles2coordinates.py
+  references:
+  - input/input_smiles.csv:copy
+  - SetFunctional/input_molecule.txt:copy
+  - GetMoleculeIndex:output
+  resourceManager:
+    config:
+      backend: '%(backend)s'
+    kubernetes:
+      image: quay.io/st4sd/community-applications/rdkit-st4sd:2019.09.1
+
+  # GAMESS US geometry optimization
+- stage: 1
+  name: GeometryOptimisation
+  command:
+    arguments: molecule.inp %(gamess-version-number)s %(gamess-number-processors)s
+    environment: gamess
+    executable: bin/run-gamess.sh
+  references:
+  - stage0.SMILESToGAMESSInput/molecule.inp:copy
+  workflowAttributes:
+    restartHookFile: "restart.py"
+    restartHookOn:
+    - KnownIssue
+    - Success
+    - ResourceExhausted
+    shutdownOn:
+    - KnownIssue
+  resourceManager:
+    config:
+      backend: '%(backend)s'
+      walltime: '%(gamess-walltime-minutes)s'
+    kubernetes:
+      gracePeriod: '%(gamess-grace-period-seconds)s'
+      image: nvcr.io/hpc/gamess:17.09-r2-libcchem
+  resourceRequest:
+    numberThreads: '%(gamess-number-processors)s'
+    memory: '%(gamess-memory)s'
+    threadsPerCore: 1
+
+  # Molecules labels for each replica
+- stage: 1
+  name: CreateLabels
+  command:
+    arguments: >-
+      -c "import pandas;
+      input_file='input/input_smiles.csv:ref';
+      row_indices='stage0.GetMoleculeIndex:output';
+      m=pandas.read_csv(input_file, engine='python', sep=None);
+      print(','.join([str(m.iloc[int(index)]['%(collabel)s']) for index in row_indices.split()]))"
+    expandArguments: "none"
+    executable: python
+  references:
+  - stage0.GetMoleculeIndex:output
+  - input/input_smiles.csv:ref
+  workflowAttributes:
+    aggregate: true
+
+  # Get the energies (molecular, homo, lumo, homo-lumo-gap .....)
+- stage: 1
+  name: ExtractEnergies
+  command:
+    arguments: -l CreateLabels:output GeometryOptimisation:ref
+    environment: python
+    executable: bin/extract_gmsout.py
+  references:
+  - GeometryOptimisation:ref
+  - CreateLabels:output
+  workflowAttributes:
+    aggregate: true
+  resourceManager:
+    config:
+      backend: '%(backend)s'
+    kubernetes:
+      image: quay.io/st4sd/community-applications/rdkit-st4sd:2019.09.1
+
+  # Get the GAMESS US TD-DFT input
+- stage: 2
+  name: CreateTDDFTInput
+  command:
+    arguments: -c stage1.GeometryOptimisation:ref/out.stdout -i -1 stage1.GeometryOptimisation:ref/molecule.dat
+      stage0.SetFunctional:ref/molecule_tddft.inp -o molecule_tddft.inp
+    environment: python
+    executable: bin/add_configuration_to_gamess_input_tddft.py
+  references:
+  - stage1.GeometryOptimisation:ref
+  - stage0.SetFunctional:ref
+  workflowAttributes:
+    shutdownOn:
+    - KnownIssue
+  resourceManager:
+    config:
+      backend: '%(backend)s'
+    kubernetes:
+      image: quay.io/st4sd/community-applications/rdkit-st4sd:2019.09.1
+
+  # Calculate the TD-DFT excitation and oscillators
+- stage: 2
+  name: TDDFTCalculation
+  command:
+    arguments: molecule_tddft.inp %(gamess-version-number)s %(gamess-number-processors)s
+    environment: gamess
+    executable: bin/run-gamess.sh
+  references:
+  - CreateTDDFTInput/molecule_tddft.inp:copy
+  workflowAttributes:
+    restartHookFile: "restart.py"
+    shutdownOn:
+    - KnownIssue
+  resourceManager:
+    config:
+      backend: '%(backend)s'
+      walltime: '%(gamess-walltime-minutes)s'
+    kubernetes:
+      gracePeriod: '%(gamess-grace-period-seconds)s'
+      image: nvcr.io/hpc/gamess:17.09-r2-libcchem
+  resourceRequest:
+    numberThreads: '%(gamess-number-processors)s'
+    memory: '%(gamess-memory)s'
+    threadsPerCore: 1
+
+  # Get the TD-DFT energies
+- stage: 2
+  name: ExtractEnergies
+  command:
+    arguments: -l stage1.CreateLabels:output  TDDFTCalculation:ref
+    environment: python
+    executable: bin/extract_gmsout.py
+  references:
+  - TDDFTCalculation:ref
+  - stage1.CreateLabels:output
+  workflowAttributes:
+    aggregate: true
+  resourceManager:
+    config:
+      backend: '%(backend)s'
+    kubernetes:
+      image: quay.io/st4sd/community-applications/rdkit-st4sd:2019.09.1
+
+  # Get the energies properties and put the information all together
+- stage: 2
+  name: ProcessTDDFTOutput
+  command:
+    arguments: stage1.ExtractEnergies:ref/energies.csv stage2.ExtractEnergies:ref/energies.csv
+    environment: python
+    executable: bin/calculate_ionisation_energy.py
+  references:
+  - stage1.ExtractEnergies:ref
+  - stage2.ExtractEnergies:ref
+  workflowAttributes:
+    aggregate: true
+  resourceManager:
+    config:
+      backend: '%(backend)s'
+    kubernetes:
+      image: quay.io/st4sd/community-applications/rdkit-st4sd:2019.09.1
+
+variables:
+  default:
+    global:
+      backend: local
+      basis: GBASIS=KTZVP
+      defaultq: normal
+      functional: B3LYP
+      numberMolecules: '1'
+      startIndex: '0'
+      # VV: NViDIA image currently ships with version 00
+      gamess-version-number: '00'
+      gamess-number-processors: '8'
+      # VV: how long k8s should let the pod run before it sends it a SIGTERM
+      gamess-walltime-minutes: 1440
+      # VV: how long k8s should wait between SIGTERM and SIGKILL
+      gamess-grace-period-seconds: 1800
+      gamess-memory: 4Gi
+      collabel: "label"
+      restartHookFile: "dft_restart.py"
+    stages:
+      0:
+        stage-name: SMILES_to_GAMESS
+      1:
+        stage-name: GeometryOptimisation
+      2:
+        stage-name: ExcitedStatesTDDFT
+  openshift:
+    global:
+      backend: kubernetes
+  openshift-kubeflux:
+    global:
+      backend: kubernetes
