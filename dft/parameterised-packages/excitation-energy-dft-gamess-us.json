@@ -30,8 +30,8 @@
         "source": {
           "git": {
             "location": {
-              "url": "https://github.com/st4sd/excitation-energy-gamess.git",
-              "commit": "2a2dddbf5b95c9d657605d163eec5f02e5f489ad"
+              "url": "https://github.com/VassilisVassiliadis/excitation-energy-gamess.git",
+              "branch": "vv_modular"
             }
           }
         },
