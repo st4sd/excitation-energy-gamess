@@ -1,4 +1,11 @@
-import os 
+
+# Copyright IBM Inc. 2017, 2018, 2019, 2020. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+# Author(s):
+#   James McDonagh
+#   Hsiang Han Hsu
+
+import os
 import sys
 import re
 import logging
@@ -14,13 +21,6 @@ __title__ = os.path.basename(__file__)
 __version__ = 1.0
 __copyright__ = "Copyright IBM Corp. 2017, 2018, 2019, 2020"
 
-# IBM Confidential
-# OCO Source Materials
-# 5747-SM3
-# (c) Copyright IBM Corp. 2020
-# The source code for this program is not published or otherwise
-# divested of its trade secrets, irrespective of what has
-# been deposited with the U.S. Copyright Office.
 
 def setup_logger(cwd, loglev="INFO"):
     """

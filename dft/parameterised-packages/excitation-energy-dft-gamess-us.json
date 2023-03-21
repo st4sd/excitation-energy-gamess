@@ -4,7 +4,7 @@
       "name": "excitation-energy-dft-gamess-us",
       "tags": [
         "latest",
-        "1.0.0"
+        "1.1.0"
       ],
       "maintainer": "https://github.com/michael-johnston",
       "license": "Apache 2.0",
@@ -31,7 +31,7 @@
           "git": {
             "location": {
               "url": "https://github.com/st4sd/excitation-energy-gamess.git",
-              "commit": "2a2dddbf5b95c9d657605d163eec5f02e5f489ad"
+              "tag": "1.1.0"
             }
           }
         },
