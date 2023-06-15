@@ -178,11 +178,11 @@ components:
   command:
     arguments: molecule.inp %(gamess-version-number)s %(gamess-number-processors)s
     environment: gamess
-    executable: bin/run-gamess.sh
+    executable: '%(gamess-command)s'
   references:
   - stage0.XYZToGAMESS/molecule.inp:copy
   workflowAttributes:
-    restartHookFile: "restart.py"
+    restartHookFile: "%(gamess-restart-hook-file)s"
     restartHookOn:
     - KnownIssue
     - Success
@@ -195,9 +195,9 @@ components:
       walltime: '%(gamess-walltime-minutes)s'
     kubernetes:
       gracePeriod: '%(gamess-grace-period-seconds)s'
-      image: nvcr.io/hpc/gamess:17.09-r2-libcchem
+      image: '%(gamess-image)s'
     docker:
-      image: nvcr.io/hpc/gamess:17.09-r2-libcchem
+      image: '%(gamess-image)s'
       platform: "%(docker-platform)s"
   resourceRequest:
     numberThreads: '%(gamess-number-processors)s'
@@ -272,11 +272,11 @@ components:
   command:
     arguments: molecule_tddft.inp %(gamess-version-number)s %(gamess-number-processors)s
     environment: gamess
-    executable: bin/run-gamess.sh
+    executable: '%(gamess-command)s'
   references:
   - CreateTDDFTInput/molecule_tddft.inp:copy
   workflowAttributes:
-    restartHookFile: "restart.py"
+    restartHookFile: "%(gamess-restart-hook-file)s"
     shutdownOn:
     - KnownIssue
   resourceManager:
@@ -285,9 +285,9 @@ components:
       walltime: '%(gamess-walltime-minutes)s'
     kubernetes:
       gracePeriod: '%(gamess-grace-period-seconds)s'
-      image: nvcr.io/hpc/gamess:17.09-r2-libcchem
+      image: '%(gamess-image)s'
     docker:
-      image: nvcr.io/hpc/gamess:17.09-r2-libcchem
+      image: '%(gamess-image)s'
       platform: "%(docker-platform)s"
   resourceRequest:
     numberThreads: '%(gamess-number-processors)s'
@@ -343,6 +343,9 @@ variables:
       functional: B3LYP
       numberMolecules: '1'
       startIndex: '0'
+      gamess-restart-hook-file: dft_restart.py
+      gamess-image: nvcr.io/hpc/gamess:17.09-r2-libcchem
+      gamess-command: bin/run-gamess.sh
       # VV: NViDIA image currently ships with version 00
       gamess-version-number: '00'
       gamess-number-processors: '8'
@@ -368,8 +371,23 @@ variables:
   openshift-kubeflux:
     global:
       backend: kubernetes
-
+  openshift-cpu:
+    global:
+      backend: kubernetes
+      gamess-restart-hook-file: cpu_dft_restart.py
+      gamess-image: docker-na-public.artifactory.swg-devops.com/res-st4sd-community-team-applications-docker-virtual/gamess-st4sd:2019.11.30
+      gamess-command: rungms
+      # The GAMESS US version in the CPU optimized image is 01
+      gamess-version: "01"
   docker:
     global:
       backend: docker
+      gamess-number-processors: 1
+  docker-cpu:
+    global:
+      backend: docker
+      gamess-restart-hook-file: cpu_semi_empirical_restart.py
+      gamess-image: docker-na-public.artifactory.swg-devops.com/res-st4sd-community-team-applications-docker-virtual/gamess-st4sd:2019.11.30
+      gamess-command: rungms
+      gamess-version: "01"
       gamess-number-processors: 1

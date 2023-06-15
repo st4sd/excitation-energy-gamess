@@ -4,7 +4,7 @@
       "name": "excitation-energy-pm6-gamess-us",
       "tags": [
         "latest",
-        "1.1.1"
+        "1.2.0"
       ],
       "maintainer": "https://github.com/michael-johnston",
       "license": "Apache 2.0",
@@ -31,7 +31,7 @@
           "git": {
             "location": {
               "url": "https://github.com/st4sd/excitation-energy-gamess.git",
-              "tag": "1.1.1"
+              "tag": "1.2.0"
             }
           }
         },
