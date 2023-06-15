@@ -79,7 +79,9 @@ output:
 platforms:
 - openshift
 - openshift-kubeflux
+- openshift-cpu
 - docker
+- docker-cpu
 
 blueprint:
   openshift-kubeflux:
@@ -95,6 +97,16 @@ environments:
       GMSPATH: /gamess/
       PATH: /gamess/:$PATH
     PYTHON: {}
+
+  openshift-cpu:
+    GAMESS:
+      GMSPATH: /gamess/
+      PATH: /gamess/:$PATH
+
+  docker-cpu:
+    GAMESS:
+      GMSPATH: /gamess/
+      PATH: /gamess/:$PATH
 
 components:
 
@@ -188,13 +200,13 @@ components:
 - stage: 1
   name: GeometryOptimisation
   command:
-    arguments: molecule.inp %(gamess-version-number)s %(gamess-number-processors)s
+    arguments: molecule.inp %(gamess-version)s %(gamess-number-processors)s
     environment: gamess
-    executable: bin/run-gamess.sh
+    executable: '%(gamess-command)s'
   references:
   - stage0.XYZToGAMESS/molecule.inp:copy
   workflowAttributes:
-    restartHookFile: "semi_empirical_restart.py"
+    restartHookFile: "%(gamess-restart-hook-file)s"
     restartHookOn:
     - KnownIssue
     - Success
@@ -207,9 +219,9 @@ components:
       walltime: '%(gamess-walltime-minutes)s'
     kubernetes:
       gracePeriod: '%(gamess-grace-period-seconds)s'
-      image: nvcr.io/hpc/gamess:17.09-r2-libcchem
+      image: '%(gamess-image)s'
     docker:
-      image: nvcr.io/hpc/gamess:17.09-r2-libcchem
+      image: '%(gamess-image)s'
       platform: "%(docker-platform)s"
   resourceRequest:
     numberThreads: '%(gamess-number-processors)s'
@@ -282,9 +294,9 @@ components:
 - stage: 2
   name: TDDFTCalculation
   command:
-    arguments: molecule_tddft.inp %(gamess-version-number)s %(gamess-number-processors)s
+    arguments: molecule_tddft.inp %(gamess-version)s %(gamess-number-processors)s
     environment: gamess
-    executable: bin/run-gamess.sh
+    executable: '%(gamess-command)s'
   references:
   - CreateTDDFTInput/molecule_tddft.inp:copy
   workflowAttributes:
@@ -297,9 +309,9 @@ components:
       walltime: '%(gamess-walltime-minutes)s'
     kubernetes:
       gracePeriod: '%(gamess-grace-period-seconds)s'
-      image: nvcr.io/hpc/gamess:17.09-r2-libcchem
+      image: '%(gamess-image)s'
     docker:
-      image: nvcr.io/hpc/gamess:17.09-r2-libcchem
+      image: '%(gamess-image)s'
       platform: "%(docker-platform)s"
   resourceRequest:
     numberThreads: '%(gamess-number-processors)s'
@@ -358,8 +370,12 @@ variables:
       functional: B3LYP
       numberMolecules: '1'
       startIndex: '0'
-      # VV: NViDIA image currently ships with version 00
-      gamess-version-number: '00'
+      gamess-restart-hook-file: semi_empirical_restart.py
+      gamess-image: nvcr.io/hpc/gamess:17.09-r2-libcchem
+      gamess-command: bin/run-gamess.sh
+      gamess-gpus: 0
+      # The GAMESS US version in the nvidia image is 00
+      gamess-version: "00"
       gamess-number-processors: '8'
       # VV: how long k8s should let the pod run before it sends it a SIGTERM
       gamess-walltime-minutes: 1440
@@ -367,7 +383,7 @@ variables:
       gamess-grace-period-seconds: 1800
       gamess-memory: 4Gi
       collabel: "label"
-      restartHookFile: "semi_empirical_restart.py"
+      restartHookFile: "%(gamess-restart-hook-file)s"
       # Used to set the --platform argument of "docker [pull|run]" - leave empty for docker-like to auto-decide
       docker-platform: ""
     stages:
@@ -383,7 +399,23 @@ variables:
   openshift-kubeflux:
     global:
       backend: kubernetes
+  openshift-cpu:
+    global:
+      backend: kubernetes
+      gamess-restart-hook-file: cpu_semi_empirical_restart.py
+      gamess-image: docker-na-public.artifactory.swg-devops.com/res-st4sd-community-team-applications-docker-virtual/gamess-st4sd:2019.11.30
+      gamess-command: rungms
+      # The GAMESS US version in the CPU optimized image is 01
+      gamess-version: "01"
   docker:
     global:
       backend: docker
+      gamess-number-processors: 1
+  docker-cpu:
+    global:
+      backend: docker
+      gamess-restart-hook-file: cpu_semi_empirical_restart.py
+      gamess-image: docker-na-public.artifactory.swg-devops.com/res-st4sd-community-team-applications-docker-virtual/gamess-st4sd:2019.11.30
+      gamess-command: rungms
+      gamess-version: "01"
       gamess-number-processors: 1
