@@ -155,14 +155,12 @@ components:
   name: SMILESToXYZ
   command:
     arguments: --input input_smiles.csv 
-      --template SetSemiEmpiricalBasis/input_molecule.txt:ref
       --row GetMoleculeIndex:output
     environment: python
     executable: bin/rdkit_smiles2coordinates.py
   references:
   - input/input_smiles.csv:copy
   - GetMoleculeIndex:output
-  - SetSemiEmpiricalBasis/input_molecule.txt:ref
   resourceManager:
     config:
       backend: '%(backend)s'
