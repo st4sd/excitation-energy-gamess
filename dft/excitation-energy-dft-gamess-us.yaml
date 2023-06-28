@@ -79,6 +79,7 @@ output:
 platforms:
 - openshift
 - openshift-kubeflux
+- docker
 
 blueprint:
   openshift-kubeflux:
@@ -143,6 +144,9 @@ components:
       backend: '%(backend)s'
     kubernetes:
       image: quay.io/st4sd/community-applications/rdkit-st4sd:2019.09.1
+    docker:
+      image: quay.io/st4sd/community-applications/rdkit-st4sd:2019.09.1
+      platform: "%(docker-platform)s"
 
   ## This component takes the path to xyz and sdf files (-xp and -sp) and the names of the files which in this case is
   ## the row number in both cases. '.xyz' and '.sdf' are added in the code. The GAMESS input file is read from the
@@ -164,6 +168,9 @@ components:
       backend: '%(backend)s'
     kubernetes:
       image: quay.io/st4sd/community-applications/rdkit-st4sd:2019.09.1
+    docker:
+      image: quay.io/st4sd/community-applications/rdkit-st4sd:2019.09.1
+      platform: "%(docker-platform)s"
 
   # GAMESS US geometry optimization
 - stage: 1
@@ -171,11 +178,11 @@ components:
   command:
     arguments: molecule.inp %(gamess-version-number)s %(gamess-number-processors)s
     environment: gamess
-    executable: bin/run-gamess.sh
+    executable: '%(gamess-command)s'
   references:
   - stage0.XYZToGAMESS/molecule.inp:copy
   workflowAttributes:
-    restartHookFile: "restart.py"
+    restartHookFile: "%(gamess-restart-hook-file)s"
     restartHookOn:
     - KnownIssue
     - Success
@@ -188,7 +195,10 @@ components:
       walltime: '%(gamess-walltime-minutes)s'
     kubernetes:
       gracePeriod: '%(gamess-grace-period-seconds)s'
-      image: nvcr.io/hpc/gamess:17.09-r2-libcchem
+      image: '%(gamess-image)s'
+    docker:
+      image: '%(gamess-image)s'
+      platform: "%(docker-platform)s"
   resourceRequest:
     numberThreads: '%(gamess-number-processors)s'
     memory: '%(gamess-memory)s'
@@ -229,6 +239,9 @@ components:
       backend: '%(backend)s'
     kubernetes:
       image: quay.io/st4sd/community-applications/rdkit-st4sd:2019.09.1
+    docker:
+      image: quay.io/st4sd/community-applications/rdkit-st4sd:2019.09.1
+      platform: "%(docker-platform)s"
 
   # Get the GAMESS US TD-DFT input
 - stage: 2
@@ -249,6 +262,9 @@ components:
       backend: '%(backend)s'
     kubernetes:
       image: quay.io/st4sd/community-applications/rdkit-st4sd:2019.09.1
+    docker:
+      image: quay.io/st4sd/community-applications/rdkit-st4sd:2019.09.1
+      platform: "%(docker-platform)s"
 
   # Calculate the TD-DFT excitation and oscillators
 - stage: 2
@@ -256,11 +272,11 @@ components:
   command:
     arguments: molecule_tddft.inp %(gamess-version-number)s %(gamess-number-processors)s
     environment: gamess
-    executable: bin/run-gamess.sh
+    executable: '%(gamess-command)s'
   references:
   - CreateTDDFTInput/molecule_tddft.inp:copy
   workflowAttributes:
-    restartHookFile: "restart.py"
+    restartHookFile: "%(gamess-restart-hook-file)s"
     shutdownOn:
     - KnownIssue
   resourceManager:
@@ -269,7 +285,10 @@ components:
       walltime: '%(gamess-walltime-minutes)s'
     kubernetes:
       gracePeriod: '%(gamess-grace-period-seconds)s'
-      image: nvcr.io/hpc/gamess:17.09-r2-libcchem
+      image: '%(gamess-image)s'
+    docker:
+      image: '%(gamess-image)s'
+      platform: "%(docker-platform)s"
   resourceRequest:
     numberThreads: '%(gamess-number-processors)s'
     memory: '%(gamess-memory)s'
@@ -292,7 +311,9 @@ components:
       backend: '%(backend)s'
     kubernetes:
       image: quay.io/st4sd/community-applications/rdkit-st4sd:2019.09.1
-
+    docker:
+      image: quay.io/st4sd/community-applications/rdkit-st4sd:2019.09.1
+      platform: "%(docker-platform)s"
   # Get the energies properties and put the information all together
 - stage: 2
   name: ProcessTDDFTOutput
@@ -310,7 +331,9 @@ components:
       backend: '%(backend)s'
     kubernetes:
       image: quay.io/st4sd/community-applications/rdkit-st4sd:2019.09.1
-
+    docker:
+      image: quay.io/st4sd/community-applications/rdkit-st4sd:2019.09.1
+      platform: "%(docker-platform)s"
 variables:
   default:
     global:
@@ -320,6 +343,9 @@ variables:
       functional: B3LYP
       numberMolecules: '1'
       startIndex: '0'
+      gamess-restart-hook-file: dft_restart.py
+      gamess-image: nvcr.io/hpc/gamess:17.09-r2-libcchem
+      gamess-command: bin/run-gamess.sh
       # VV: NViDIA image currently ships with version 00
       gamess-version-number: '00'
       gamess-number-processors: '8'
@@ -330,6 +356,8 @@ variables:
       gamess-memory: 4Gi
       collabel: "label"
       restartHookFile: "dft_restart.py"
+      # Used to set the --platform argument of "docker [pull|run]" - leave empty for docker-like to auto-decide
+      docker-platform: ""
     stages:
       0:
         stage-name: SMILES_to_GAMESS
@@ -343,3 +371,23 @@ variables:
   openshift-kubeflux:
     global:
       backend: kubernetes
+  openshift-cpu:
+    global:
+      backend: kubernetes
+      gamess-restart-hook-file: cpu_dft_restart.py
+      gamess-image: docker-na-public.artifactory.swg-devops.com/res-st4sd-community-team-applications-docker-virtual/gamess-st4sd:2019.11.30
+      gamess-command: rungms
+      # The GAMESS US version in the CPU optimized image is 01
+      gamess-version: "01"
+  docker:
+    global:
+      backend: docker
+      gamess-number-processors: 1
+  docker-cpu:
+    global:
+      backend: docker
+      gamess-restart-hook-file: cpu_semi_empirical_restart.py
+      gamess-image: docker-na-public.artifactory.swg-devops.com/res-st4sd-community-team-applications-docker-virtual/gamess-st4sd:2019.11.30
+      gamess-command: rungms
+      gamess-version: "01"
+      gamess-number-processors: 1

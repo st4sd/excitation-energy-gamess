@@ -1,4 +1,4 @@
-#! /usr/bin/env python
+#!/usr/bin/env python
 
 # Copyright IBM Inc. 2015, 2019. All Rights Reserved.
 # SPDX-License-Identifier: Apache-2.0
@@ -17,7 +17,9 @@ from datetime import datetime
 __organisation__ ="IBM Research, 2019"
 __title__ = "extract_gmsout.py"
 __copyright__ = "Copyright IBM 2019"
-os.system('clear')
+
+# VV: This causes terminals to clear when grabbing the logs of the pod that's executing this command
+# os.system('clear')
 
 # ===== Self-defined functions =====
 # num2str
