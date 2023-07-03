@@ -8,7 +8,7 @@
       ],
       "maintainer": "https://github.com/michael-johnston",
       "license": "Apache 2.0",
-      "description": "Uses semi the PM6 semi empirical method to perform geometry optimization and calculate the band-gap and related properties. This is followed by a TD-DFT calculation to calculate the excitation energy. The calculation is performed with GAMESS-US. Functional/Basis-Set for both calculations are PM6 method: B3LYP/KTZVP + D3. Number of states for TD-DFT is 10.",
+      "description": "Uses the PM6 semi empirical method to perform geometry optimization and calculate the band-gap and related properties. This is followed by a TD-DFT calculation to calculate the excitation energy. Both calculations are performed with GAMESS-US. Functional/Basis-Set for the TD-DFT calculation is B3LYP/KTZVP + D3. Number of states for TD-DFT is 10.",
       "keywords": [
         "smiles",
         "computational chemistry",
